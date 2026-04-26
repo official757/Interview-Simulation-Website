@@ -9,55 +9,38 @@ function App() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+
+        const rows = parseCSV(text);
+
+        const headers = rows[0] || [];
+
+        const body = rows.slice(1).map((row) => {
+          let obj = {};
+          headers.forEach((h, i) => {
+            obj[h] = row[i] || "";
+          });
+          return obj;
+        });
+
+        setData(body);
+      } catch (err) {
+        console.error("Fetch error:", err);
+      }
+    };
+
     fetchData();
   }, []);
 
+  // ✅ safer CSV parser
   const parseCSV = (text) => {
     return text
       .trim()
       .split("\n")
-      .map((row) => {
-        let result = [];
-        let current = "";
-        let inside = false;
-
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          const next = row[i + 1];
-
-          if (char === '"' && inside && next === '"') {
-            current += '"';
-            i++;
-          } else if (char === '"') {
-            inside = !inside;
-          } else if (char === "," && !inside) {
-            result.push(current);
-            current = "";
-          } else {
-            current += char;
-          }
-        }
-        result.push(current);
-        return result;
-      });
-  };
-
-  const fetchData = async () => {
-    const res = await fetch(SHEET_URL);
-    const text = await res.text();
-
-    const rows = parseCSV(text);
-
-    const headers = rows[0];
-    const body = rows.slice(1).map((row) => {
-      let obj = {};
-      headers.forEach((h, i) => {
-        obj[h] = row[i];
-      });
-      return obj;
-    });
-
-    setData(body);
+      .map((row) => row.split(",").map((cell) => cell.replace(/"/g, "").trim()));
   };
 
   const getColor = (category) => {
@@ -79,9 +62,15 @@ function App() {
     }
   };
 
-  const filtered = data.filter((item) =>
-    Object.values(item).join(" ").toLowerCase().includes(search.toLowerCase())
-  );
+  // ✅ faster + safer filter
+  const filtered = search
+    ? data.filter((item) =>
+        Object.values(item)
+          .join(" ")
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      )
+    : data;
 
   return (
     <div className="container">
@@ -101,15 +90,11 @@ function App() {
       <div className="grid">
         {filtered.map((item, i) => (
           <div className="card" key={i}>
-            <div className="title">
-              {item["Form Name"]}
-            </div>
+            <div className="title">{item["Form Name"]}</div>
 
             <div
               className="badge"
-              style={{
-                background: getColor(item["Category"]),
-              }}
+              style={{ background: getColor(item["Category"]) }}
             >
               {item["Category"]}
             </div>
